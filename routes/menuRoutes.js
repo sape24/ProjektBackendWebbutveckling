@@ -2,6 +2,7 @@ const express = require("express")
 const router = express.Router()
 const sqlite3 = require("sqlite3").verbose()
 const db = new sqlite3.Database("./db/api.db")
+const authenticateToken = require("../Middleware/authMiddleware")
 
 router.get("/", (req, res) =>{
     db.all("SELECT * FROM menu", (err, rows) =>{
@@ -10,7 +11,7 @@ router.get("/", (req, res) =>{
     })
 })
 
-router.post("/", (req, res) => {
+router.post("/", authenticateToken, (req, res) => {
     const {name, description, price, category} = req.body
 
     if (!name || !description || !price || !category) {
@@ -27,7 +28,7 @@ router.post("/", (req, res) => {
     stmt.finalize()
 })
 
-router.put("/:id", (req, res) => {
+router.put("/:id", authenticateToken, (req, res) => {
     const {id} = req.params
     const {name, description, price, category} = req.body
 
@@ -42,7 +43,7 @@ router.put("/:id", (req, res) => {
     stmt.finalize()
 })
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", authenticateToken, (req, res) => {
     const {id} = req.params
     const stmt = db.prepare("DELETE FROM menu WHERE id = ?")
     stmt.run(id, function(err) {
