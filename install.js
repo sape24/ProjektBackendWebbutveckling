@@ -3,12 +3,10 @@ const db = new sqlite3.Database("./db/api.db")                                  
 const bcrypt = require("bcrypt")                                                      //importerar bcrypt för att kunna hasha lösenord
 
 
-db.serialize( async() => {                             //Kör följande databasanrop i rad, först en DROP för att ta bort tabellerna om de redan existerar sedan skapar den tabellen med definitioner
-    db.run("DROP TABLE IF EXISTS user;")
-    db.run("DROP TABLE IF EXISTS menu;") 
-     
+db.serialize(() => {                             //Kör följande databasanrop i rad, skapar tabeller ifall dom inte existerar med definitioner
+    
     db.run(`                                             
-        CREATE TABLE user(
+        CREATE TABLE IF NOT EXISTS user(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
@@ -17,7 +15,7 @@ db.serialize( async() => {                             //Kör följande databasa
     `)
 
     db.run(`
-        CREATE TABLE menu(                                                     
+        CREATE TABLE IF NOT EXISTS menu(                                                     
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name        TEXT NOT NULL,
             description TEXT NOT NULL,
@@ -26,14 +24,39 @@ db.serialize( async() => {                             //Kör följande databasa
         );
     `)
     console.log("Databas med tabeller skapad")
-    try{                                                                               //skapar ett adminkonto
-        const hashedPassword = await bcrypt.hash("admin123", 10)                         //hashar lösenordet admin123
-        db.run("INSERT INTO user (username, password) VALUES (?, ?)", ["admin", hashedPassword], (err) =>{
-        if (err) console.error("Fel vid skapandet av ADMINkonto", err.message)
-        else console.log("ADMIN skapat")
-    })    
-    } catch (error){
-        console.error("fel vid hashning")
-        db.close();         //stänger databasen när allt är klart
-    }
+    
+    db.get("SELECT 1 FROM user WHERE username = ?", ["admin"], (err,row) =>{            //kontrollerar om admin redan finns i tabellen user
+        if (err){
+            console.error("Fel vid sökning av admin:", err.message)                   
+            db.close()
+            return                                                                  //return och avbryter om fel uppstår
+        }
+
+        if(row) {                                                             //om en rad hittas betyder det att admin existerar
+            console.log("Admin finns redan")
+            db.close()
+            return 
+        }
+
+        bcrypt.hash("admin123", 10, (hashErr, hashedpassword) =>{                  //hashar lösenordet med 10 som saltvärde
+            if (hashErr) {
+                console.error("Fel vid hashning:", hashErr.message)
+                db.close()
+                return
+            }
+
+            db.run(`
+                INSERT INTO user (username, password) VALUES (?,?)`,                    //lägger till en ny användare admin i databasen med det hashade lösenordet
+                ["admin", hashedpassword],
+                (insertErr) =>{                                                         
+                if (insertErr) {
+                    console.error("Fel vid skapandet av adminkonto:", insertErr.message)
+                }else{
+                    console.log("admin skapad")
+                } 
+                db.close()                                                                //stänger databasanslutning när allt är klart
+                }
+            )
+        })
+    })
 })
